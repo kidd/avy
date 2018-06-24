@@ -1442,6 +1442,33 @@ When BOTTOM-UP is non-nil, display avy candidates from top to bottom"
         candidates
       (nreverse candidates))))
 
+(defun avy--url-cands (&optional arg beg end bottom-up)
+  "Get candidates for selecting a line.
+The window scope is determined by `avy-all-windows'.
+When ARG is non-nil, do the opposite of `avy-all-windows'.
+BEG and END narrow the scope where candidates are searched.
+When BOTTOM-UP is non-nil, display avy candidates from top to bottom"
+  (let (candidates)
+    (avy-dowindows arg
+      (let ((ws (or beg (window-start))))
+        (save-excursion
+          (save-restriction
+            (narrow-to-region ws (or end (window-end (selected-window) t)))
+            (goto-char (point-min))
+            (ignore-errors
+              (while (< (point) (point-max))
+               (unless (get-char-property
+                        (max (1- (point)) ws) 'invisible)
+                 (push (cons
+                        (if (eq avy-style 'post)
+                            (line-end-position)
+                          (point))
+                        (selected-window)) candidates))
+               (re-search-forward "http://\\S+" (or end (window-end (selected-window) t)) nil 1)))))))
+    (if bottom-up
+        candidates
+      (nreverse candidates))))
+
 (defun avy--linum-strings ()
   "Get strings for `avy-linum-mode'."
   (let* ((lines (mapcar #'car (avy--line-cands)))
@@ -1534,6 +1561,21 @@ When BOTTOM-UP is non-nil, display avy candidates from top to bottom"
   (let ((avy-action #'identity))
     (avy--process
      (avy--line-cands arg beg end bottom-up)
+     (if avy-linum-mode
+         (progn (message "Goto line:")
+                'ignore)
+       (avy--style-fn avy-style)))))
+
+
+(defun avy--url (&optional arg beg end bottom-up)
+  "Select a line.
+The window scope is determined by `avy-all-windows'.
+When ARG is non-nil, do the opposite of `avy-all-windows'.
+BEG and END narrow the scope where candidates are searched.
+When BOTTOM-UP is non-nil, display avy candidates from top to bottom"
+  (let ((avy-action #'identity))
+    (avy--process
+     (avy--url-cands arg beg end bottom-up)
      (if avy-linum-mode
          (progn (message "Goto line:")
                 'ignore)
